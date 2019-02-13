@@ -30,7 +30,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
    * NOTE: Consult particle_filter.h for more information about this method
    *   (and others in this file).
    */
-  num_particles = 1000;  // TODO: Set the number of particles
+  num_particles = 100;  // TODO: Set the number of particles
   std::default_random_engine gen;
   std::normal_distribution<double> norm_x(x,std[0]);
   std::normal_distribution<double> norm_y(y,std[1]);
@@ -39,7 +39,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
     double noisy_x = norm_x(gen);
     double noisy_y = norm_y(gen);
     double noisy_theta = norm_theta(gen);
-    std::cout << "x" << noisy_x << "y" << noisy_y << std::endl;
+    //std::cout << "x" << noisy_x << "y" << noisy_y << std::endl;
     Particle p = { p.id = i, p.x = noisy_x, p.y = noisy_y, p.theta = noisy_theta, p.weight=1};
     particles.push_back(p);
   }
@@ -58,8 +58,9 @@ void ParticleFilter::prediction(double delta_t, double std_pos[],
 
 }
 
-void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted,
-                                     vector<LandmarkObs>& observations) {
+void ParticleFilter::dataAssociation(Particle &particle,
+                                     Map map_landmarks, vector<double> sense_x,
+                                     vector<double> sense_y) {
   /**
    * TODO: Find the predicted measurement that is closest to each
    *   observed measurement and assign the observed measurement to this
@@ -68,7 +69,26 @@ void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted,
    *   probably find it useful to implement this method and use it as a helper
    *   during the updateWeights phase.
    */
-
+   vector<int> landmark_assocs;
+   // Iterate over each transformed observation of the particle and find the closest
+   // landmark for each observation
+   //std::cout << "sense x" << sense_x;
+   for (int i=0; i<sense_x.size(); ++i) {
+     std::cout << "Trying to find landmark for observation " << i << std::endl;
+     int min_index = -100000;
+     int min_distance = 100000;
+     for (int j=0; j<map_landmarks.landmark_list.size(); ++j) {
+       double distance = dist(sense_x[i], sense_y[i],
+                              map_landmarks.landmark_list[j].x_f,
+                              map_landmarks.landmark_list[j].y_f );
+       if (distance < min_distance) {
+         min_index = map_landmarks.landmark_list[j].id_i;
+         min_distance = distance;
+       }
+     }
+     landmark_assocs.push_back(min_index);
+   }
+   SetAssociations(particle, landmark_assocs, sense_x, sense_y);
 }
 
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
@@ -87,18 +107,37 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
    *   and the following is a good resource for the actual equation to implement
    *   (look at equation 3.33) http://planning.cs.uiuc.edu/node99.html
    */
+
+  // 1. Transform landmark observations into map coordinates
   for (int i=0; i<particles.size(); ++i) {
-    vector<LandmarkObs> t_observations;
-    for (int j=0; j<observations.size(); ++i) {
+    std::cout << "Particle " << i << std::endl;
+    // Hold transformed x and y observations
+    vector<double> tx_obs;
+    vector<double> ty_obs;
+    for (int j=0; j<observations.size(); ++j) {
+      std::cout << "Observation: " << j << std::endl;
+
       Particle p = particles[i];
       LandmarkObs obs = observations[j];
-      LandmarkObs t_obs;
-      t_obs.id = obs.id;
-      t_obs.x = obs.x * cos(p.theta) - obs.y*sin(p.theta) + p.x;
-      t_obs.y = obs.x * sin(p.theta) - obs.y*cos(p.theta) + p.y;
-      t_observations.push_back(t_obs);
+      // Transform car observations into particle (world) coordinates
+      double world_x = obs.x * cos(p.theta) - obs.y*sin(p.theta) + p.x;
+      double world_y = obs.x * sin(p.theta) - obs.y*cos(p.theta) + p.y;
+      tx_obs.push_back(world_x);
+      ty_obs.push_back(world_y);
+      //LandmarkObs t_obs;
+      //t_obs.id = obs.id;
+      //t_obs.x = obs.x * cos(p.theta) - obs.y*sin(p.theta) + p.x;
+      //t_obs.y = obs.x * sin(p.theta) - obs.y*cos(p.theta) + p.y;
+      //t_observations.push_back(t_obs);
     }
+    dataAssociation(particles[i], map_landmarks, tx_obs, ty_obs);
+
+    // Update associations
+
   }
+  // 2. Associate transformed landmark observations with nearest landmarks
+
+
 }
 
 void ParticleFilter::resample() {
