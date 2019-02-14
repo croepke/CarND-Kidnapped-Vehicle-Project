@@ -30,7 +30,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
    * NOTE: Consult particle_filter.h for more information about this method
    *   (and others in this file).
    */
-  num_particles = 100;  // TODO: Set the number of particles
+  num_particles = 500;  // TODO: Set the number of particles
   std::default_random_engine gen;
   std::normal_distribution<double> norm_x(x,std[0]);
   std::normal_distribution<double> norm_y(y,std[1]);
@@ -60,14 +60,14 @@ void ParticleFilter::prediction(double delta_t, double std_pos[],
    std::default_random_engine gen;
    std::normal_distribution<double> norm_x(0,std_pos[0]);
    std::normal_distribution<double> norm_y(0,std_pos[1]);
-   std::normal_distribution<double> norm_yaw(0,std_pos[1]);
+   std::normal_distribution<double> norm_yaw(0,std_pos[2]);
    double x_pred, y_pred, yaw_pred;
 
    for (int i=0; i<num_particles; ++i) {
      double noise_x = norm_x(gen);
      double noise_y = norm_y(gen);
      double noise_theta = norm_yaw(gen);
-     if (yaw_rate == 0){
+     if (fabs(yaw_rate) < 0.001){
        x_pred = particles[i].x + velocity * delta_t * cos(particles[i].theta);
        y_pred = particles[i].y + velocity * delta_t * sin(particles[i].theta);
        yaw_pred = particles[i].theta;
@@ -82,6 +82,8 @@ void ParticleFilter::prediction(double delta_t, double std_pos[],
      particles[i].x = x_pred + noise_x;
      particles[i].y = y_pred + noise_y;
      particles[i].theta = yaw_pred + noise_theta;
+     //while(particles[i].theta>M_PI) particles[i].theta-=2.*M_PI;
+     //while(particles[i].theta<-M_PI) particles[i].theta+=2.*M_PI;
    }
 
 }
@@ -158,11 +160,12 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
     dataAssociation(particles[i], map_landmarks, tx_obs, ty_obs);
     double prob = 1.0;
     for (int k=0; k<particles[i].sense_x.size(); ++k) {
-      prob *= multivar(particles[i].sense_x[k], particles[i].sense_y[k],
-                       map_landmarks.landmark_list[particles[i].associations[k]].x_f,
-                       map_landmarks.landmark_list[particles[i].associations[k]].y_f,
-                       std_landmark[0], std_landmark[1]);
+      prob *= multiv_prob(std_landmark[0], std_landmark[1],
+                          particles[i].sense_x[k], particles[i].sense_y[k],
+                          map_landmarks.landmark_list[particles[i].associations[k]].x_f,
+                          map_landmarks.landmark_list[particles[i].associations[k]].y_f);
     }
+    std::cout << prob << std::endl;
     particles[i].weight = prob;
     weights[i]=prob;
   }
