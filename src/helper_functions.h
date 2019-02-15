@@ -249,8 +249,13 @@ inline bool read_landmark_data(std::string filename,
 }
 
 /**
- * Calculates multivariate probability distribution
- * @param
+ * Multivariate probability distribution
+ * @param obs_x X-coordinate of observation in world coordinates
+ * @param obs_y Y-coordinate of observation in world coordinates
+ * @param mu_x (Mean) X-coordinate value of associated closest landmark
+ * @param mu_y (Mean) Y-coordinate value of associated closest landmark
+ * @param sigma_x Standard deviation for landmark observation (X)
+ * @param sigma_y Standard deviation for landmark observation (Y)
  */
 inline double multivar(double obs_x, double obs_y, double mu_x, double mu_y,
                        double sigma_x, double sigma_y) {
@@ -258,24 +263,6 @@ inline double multivar(double obs_x, double obs_y, double mu_x, double mu_y,
     double exponent_x = ((obs_x-mu_x)*(obs_x-mu_x))/(2*sigma_x*sigma_x);
     double exponent_y = ((obs_y-mu_y)*(obs_y-mu_y))/(2*sigma_y*sigma_y);
     return coef * exp(-(exponent_x+exponent_y));
-}
-
-inline double multiv_prob(double sig_x, double sig_y, double x_obs, double y_obs,
-                   double mu_x, double mu_y) {
-  // calculate normalization term
-  double gauss_norm;
-  gauss_norm = 1 / (2 * M_PI * sig_x * sig_y);
-
-  // calculate exponent
-  double exponent;
-  exponent = (pow(x_obs - mu_x, 2) / (2 * pow(sig_x, 2)))
-               + (pow(y_obs - mu_y, 2) / (2 * pow(sig_y, 2)));
-
-  // calculate weight using normalization terms and exponent
-  double weight;
-  weight = gauss_norm * exp(-exponent);
-
-  return weight;
 }
 
 #endif  // HELPER_FUNCTIONS_H_

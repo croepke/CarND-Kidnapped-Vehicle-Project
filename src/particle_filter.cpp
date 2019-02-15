@@ -30,18 +30,17 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
    * NOTE: Consult particle_filter.h for more information about this method
    *   (and others in this file).
    */
-  num_particles = 500;  // TODO: Set the number of particles
+  num_particles = 200;  // TODO: Set the number of particles
   std::default_random_engine gen;
-  std::normal_distribution<double> norm_x(x,std[0]);
-  std::normal_distribution<double> norm_y(y,std[1]);
-  std::normal_distribution<double> norm_theta(theta,std[2]);
+  std::normal_distribution<double> norm_x(x, std[0]);
+  std::normal_distribution<double> norm_y(y, std[1]);
+  std::normal_distribution<double> norm_theta(theta, std[2]);
   for (int i=0; i < num_particles; ++i) {
     double noisy_x = norm_x(gen);
     double noisy_y = norm_y(gen);
     double noisy_theta = norm_theta(gen);
+    Particle p = { p.id = i, p.x = noisy_x, p.y = noisy_y, p.theta = noisy_theta, p.weight=1.0};
     weights.push_back(1.0);
-    //std::cout << "x" << noisy_x << "y" << noisy_y << std::endl;
-    Particle p = { p.id = i, p.x = noisy_x, p.y = noisy_y, p.theta = noisy_theta, p.weight=1};
     particles.push_back(p);
   }
   is_initialized = true;
@@ -82,8 +81,6 @@ void ParticleFilter::prediction(double delta_t, double std_pos[],
      particles[i].x = x_pred + noise_x;
      particles[i].y = y_pred + noise_y;
      particles[i].theta = yaw_pred + noise_theta;
-     //while(particles[i].theta>M_PI) particles[i].theta-=2.*M_PI;
-     //while(particles[i].theta<-M_PI) particles[i].theta+=2.*M_PI;
    }
 
 }
@@ -115,7 +112,7 @@ void ParticleFilter::dataAssociation(Particle &particle,
          min_distance = distance;
        }
      }
-     landmark_assocs.push_back(min_index);
+     landmark_assocs.push_back(min_index+1);
    }
    SetAssociations(particle, landmark_assocs, sense_x, sense_y);
 }
@@ -137,35 +134,32 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
    *   (look at equation 3.33) http://planning.cs.uiuc.edu/node99.html
    */
 
-  // 1. Transform landmark observations into map coordinates
+  /**
+   * For each particle transform all observations into world coordinates and
+   * determine the closest landmark for each transformed observation
+   */
   for (int i=0; i<particles.size(); ++i) {
-    // Hold transformed x and y observations
     vector<double> tx_obs;
     vector<double> ty_obs;
+    // Transform observations into world coordinates
     for (int j=0; j<observations.size(); ++j) {
-
       Particle p = particles[i];
       LandmarkObs obs = observations[j];
-      // Transform car observations into particle (world) coordinates
       double world_x = p.x + cos(p.theta) * obs.x - sin(p.theta) * obs.y;
       double world_y = p.y + sin(p.theta) * obs.x + cos(p.theta) * obs.y;
       tx_obs.push_back(world_x);
       ty_obs.push_back(world_y);
-      //LandmarkObs t_obs;
-      //t_obs.id = obs.id;
-      //t_obs.x = obs.x * cos(p.theta) - obs.y*sin(p.theta) + p.x;
-      //t_obs.y = obs.x * sin(p.theta) - obs.y*cos(p.theta) + p.y;
-      //t_observations.push_back(t_obs);
     }
+    // Update particle with transformed observations and set landmark associations
     dataAssociation(particles[i], map_landmarks, tx_obs, ty_obs);
+    // Determine the joint probability for this particle (given the observations)
     double prob = 1.0;
     for (int k=0; k<particles[i].sense_x.size(); ++k) {
-      prob *= multiv_prob(std_landmark[0], std_landmark[1],
-                          particles[i].sense_x[k], particles[i].sense_y[k],
-                          map_landmarks.landmark_list[particles[i].associations[k]].x_f,
-                          map_landmarks.landmark_list[particles[i].associations[k]].y_f);
+      prob *= multivar(particles[i].sense_x[k], particles[i].sense_y[k],
+                          map_landmarks.landmark_list[particles[i].associations[k]-1].x_f,
+                          map_landmarks.landmark_list[particles[i].associations[k]-1].y_f,
+                          std_landmark[0], std_landmark[1]);
     }
-    std::cout << prob << std::endl;
     particles[i].weight = prob;
     weights[i]=prob;
   }
